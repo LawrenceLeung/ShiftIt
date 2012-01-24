@@ -63,6 +63,7 @@ int AXUISetWindowSize(void *window, unsigned int width, unsigned int height) {
 	return 0;
 }
 
+// get the active/focused window.  If not available, it tries to unminimize all windows for the app to find a window.
 int AXUIGetActiveWindow(void **activeWindow) {
 	AXUIElementRef systemElementRef = AXUIElementCreateSystemWide();
 	// here is the assert for purpose because the app should not have gone 
@@ -86,11 +87,39 @@ int AXUIGetActiveWindow(void **activeWindow) {
 	axerror = AXUIElementCopyAttributeValue((AXUIElementRef)focusedAppRef,
 											(CFStringRef)NSAccessibilityFocusedWindowAttribute,
 											(CFTypeRef*)&focusedWindowRef);
-	CFRelease(focusedAppRef);
+	
 	if (axerror != kAXErrorSuccess) {
-		return -2;
-	}
-	FMTAssertNotNil(focusedWindowRef);
+        // try getting child windows
+        
+        NSArray * childWindows = nil;
+        
+        axerror = AXUIElementCopyAttributeValue((AXUIElementRef)focusedAppRef,
+                                                (CFStringRef)NSAccessibilityWindowsAttribute,
+                                                (CFTypeRef*)&childWindows);
+
+        if (axerror==kAXErrorSuccess){
+            // no focused windows.  Let's unminimize everything
+            NSNumber *minimized=[NSNumber numberWithInt:0];
+            for (NSWindow * childWindow in childWindows){
+                AXUIElementSetAttributeValue((AXUIElementRef) childWindow, (CFStringRef)NSAccessibilityMinimizedAttribute, (CFTypeRef*)minimized);
+            }      
+            CFRelease(minimized);            
+            CFRelease(childWindows);
+        }
+        
+        // now try getting the focused window again to see if its better
+        axerror = AXUIElementCopyAttributeValue((AXUIElementRef)focusedAppRef,
+                                                (CFStringRef)NSAccessibilityFocusedWindowAttribute,
+                                                (CFTypeRef*)&focusedWindowRef);
+        if (axerror!=kAXErrorSuccess){
+            CFRelease(focusedAppRef); // didn't fix it :(
+            return -2;
+        }
+	} 
+    
+    
+	FMTAssertNotNil(focusedWindowRef);    
+    CFRelease(focusedAppRef);
 	*activeWindow = (void *) focusedWindowRef;
 
 	return 0;
