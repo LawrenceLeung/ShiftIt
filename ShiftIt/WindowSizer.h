@@ -30,12 +30,16 @@
 @interface WindowSizer : NSObject {
  @private
     AXUIElementRef axSystemWideElement_;
-	
+    
 	int menuBarHeight_;
 }
 
 + (WindowSizer *) sharedWindowSize;
 
 - (void) shiftFocusedWindowUsing:(ShiftItAction *)action error:(NSError **)error;
+
+
+@property (nonatomic, retain) NSString *lastActionExecuted;
+
 
 @end

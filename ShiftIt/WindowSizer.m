@@ -31,6 +31,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // reference to the carbon GetMBarHeight() function
 extern short GetMBarHeight(void);
 
+
 @interface NSScreen (Private)
 
 + (NSScreen *)primaryScreen;
@@ -54,7 +55,7 @@ extern short GetMBarHeight(void);
 
 @interface WindowSizer (Private)
 
-- (NSScreen *)chooseScreenForWindow_:(NSRect)windowRect;
+- (NSScreen *)chooseScreenForWindow_: windowRect:(NSRect)windowRect nextWindow:(bool)nextWindow;
 
 @end
 
@@ -62,6 +63,8 @@ extern short GetMBarHeight(void);
 @implementation WindowSizer
 
 SINGLETON_BOILERPLATE(WindowSizer, sharedWindowSize);
+
+@synthesize lastActionExecuted;
 
 // TODO: remove
 - (id)init {
@@ -184,9 +187,16 @@ SINGLETON_BOILERPLATE(WindowSizer, sharedWindowSize);
 		 FMTDevLog(@"Screen info: %@ frame: %@ visible frame: %@",screen, RECT_STR(frame), RECT_STR(visibleFrame));
 	 }
 #endif		 
-	 
+    
+    bool repeatLastShift=[[action identifier] isEqualToString:lastActionExecuted];
+    
+    // save a potential window shift last action
+    if ([action identifier] == @"left" || [action identifier] == @"right" || [action identifier] == @"top" || [action identifier] == @"bottom"){
+        lastActionExecuted = [action identifier];
+    }
+     
 	// get the screen which is the best fit for the window
-	NSScreen *screen = [self chooseScreenForWindow_:windowRect];
+    NSScreen *screen = [self chooseScreenForWindow_:windowRect nextWindow:repeatLastShift];
 	
 	// screen coordinates of the best fit window
 	NSRect screenRect = [screen frame];
@@ -305,7 +315,7 @@ SINGLETON_BOILERPLATE(WindowSizer, sharedWindowSize);
  * For each screen it computes the intersecting rectangle and its size. 
  * The biggest is the screen where is the most of the window hence the best fit.
  */
-- (NSScreen *)chooseScreenForWindow_:(NSRect)windowRect {
+- (NSScreen *)chooseScreenForWindow_:(NSRect)windowRect nextWindow:(bool)nextWindow {
 	// TODO: rename intgersect
 	// TODO: all should be ***Rect
 	
@@ -327,6 +337,11 @@ SINGLETON_BOILERPLATE(WindowSizer, sharedWindowSize);
 			}
 		}
 	}
+    
+    if (nextWindow){
+        NSArray * screens=[NSScreen screens];
+        return [screens objectAtIndex:(([screens indexOfObject:fitScreen]+1) % [screens count])];
+    }
 
 	return fitScreen;
 }
