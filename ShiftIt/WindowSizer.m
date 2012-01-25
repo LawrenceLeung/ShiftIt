@@ -65,13 +65,14 @@ extern short GetMBarHeight(void);
 SINGLETON_BOILERPLATE(WindowSizer, sharedWindowSize);
 
 @synthesize lastActionExecuted;
+@synthesize lastWindowRectStr;
 
 // TODO: remove
 - (id)init {
 	if (![super init]) {
 		return nil;
 	}
-	
+    
 	return self;
 }
 
@@ -186,13 +187,16 @@ SINGLETON_BOILERPLATE(WindowSizer, sharedWindowSize);
 		 COCOA_TO_SCREEN_COORDINATES(visibleFrame);
 		 FMTDevLog(@"Screen info: %@ frame: %@ visible frame: %@",screen, RECT_STR(frame), RECT_STR(visibleFrame));
 	 }
-#endif		 
-    
-    bool repeatLastShift=[[action identifier] isEqualToString:lastActionExecuted];
+#endif		
+     
+     // shift if the action is the same as the last and the rect is the same (crude approximation for same window)
+     bool repeatLastShift=[[action identifier] isEqualToString:lastActionExecuted] && [RECT_STR(windowRect) isEqualToString:lastWindowRectStr];
     
     // save a potential window shift last action
     if ([action identifier] == @"left" || [action identifier] == @"right" || [action identifier] == @"top" || [action identifier] == @"bottom"){
         lastActionExecuted = [action identifier];
+    } else {
+        lastActionExecuted = @"None"; // reset this so we don't shift without doubletapping a direction event
     }
      
 	// get the screen which is the best fit for the window
@@ -214,8 +218,8 @@ SINGLETON_BOILERPLATE(WindowSizer, sharedWindowSize);
 	// execute shift it action to reposition the application window
 	ShiftItFunctionRef actionFunction = [action action];
 	NSRect shiftedRect = actionFunction(visibleScreenRect.size, windowRect);
-	FMTDevLog(@"shifted window rect: %@", RECT_STR(shiftedRect));
-	 
+	FMTDevLog(@"shifted window rect: %@", RECT_STR(shiftedRect));   
+     
 	// readjust adjust the visibility
 	// the shiftedRect is the new application window geometry relative to the screen originating at [0,0]
 	// we need to shift it accordingly that is to the origin of the best fit screen (screenRect) and
@@ -254,8 +258,8 @@ SINGLETON_BOILERPLATE(WindowSizer, sharedWindowSize);
 	} 
 #endif // X11
 		
-	FMTDevLog(@"translated shifted rect: %@", RECT_STR(shiftedRect));
-	
+	FMTDevLog(@"translated shifted rect: %@", RECT_STR(shiftedRect));    
+     
 	x = (int) shiftedRect.origin.x;
 	y = (int) shiftedRect.origin.y;
 	width = (unsigned int) shiftedRect.size.width;
@@ -297,7 +301,24 @@ SINGLETON_BOILERPLATE(WindowSizer, sharedWindowSize);
 #ifdef X11
 	}
 #endif // X11
-		 
+	
+	 
+     // update last window update rect str cache from the current screen coordinates (required as the adjusted size!=final sometimes)     
+     errorCode = AXUIGetWindowGeometry(window, &x, &y, &width, &height);
+     
+    if (errorCode != 0) {
+         *error = SICreateError(FMTStrc(AXUIGetErrorMessage(errorCode)), kUnableToGetWindowGeometryErrorCode);
+         return;
+    }
+    // the updated window rect in screen coordinates
+    NSRect updatedWindowRect = {
+        {x, y},
+        {width, height}
+    };
+    if (lastWindowRectStr){ [lastWindowRectStr release]; }
+    lastWindowRectStr=[NSString stringWithString:RECT_STR(updatedWindowRect)];
+    [lastWindowRectStr retain];     
+     
 #ifdef X11
 	if (activeWindowX11) {
 		X11FreeWindowRef(window);

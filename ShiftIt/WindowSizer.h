@@ -40,6 +40,6 @@
 
 
 @property (nonatomic, retain) NSString *lastActionExecuted;
-
+@property (nonatomic, retain) NSString *lastWindowRectStr;
 
 @end
